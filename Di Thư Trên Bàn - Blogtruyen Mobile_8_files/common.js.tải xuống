@@ -1,0 +1,590 @@
+﻿function ShowLoading() {
+    $('#loadingWithOverlay').show();
+}
+
+function HideLoading() {
+    $('#loadingWithOverlay').hide();
+}
+
+$('.ajax-content').each(function (e) {
+    $(this).load($(this).attr("data-url"), function () { });
+})
+
+$('.ajax-paging').on('click', '.pagination a', function () {
+    var container = $(this).closest('.ajax-paging');
+    var article = $(this).closest('.scrollTo');
+    if (article.length > 0) $('html, body').animate({ scrollTop: article.offset().top }, 500);
+    container.load($(this).attr('href').replace(' ', '%20'), function () { });
+    return false;
+})
+
+$('.btChangeView').on('click', function () {
+    var val = $(this).data('type');
+    var active = $(this).data('active');
+    if (val != undefined && val != '' && active != 1) {
+        // $.cookie("bt_view_type", val, { path: '/' });
+        setCookie("bt_view_type", val, 365*24*60);
+        window.location.href = window.location.href;
+    }
+})
+
+$('.btLightOff').on('click', function () {
+    if ($('body').hasClass('dark')) {
+        setCookie('theme_color', 'light', 365 * 24 * 60);
+        $('body').removeClass('dark').addClass('light');
+    }
+    else {
+        setCookie('theme_color', 'dark', 365 * 24 * 60);
+        $('body').removeClass('light').addClass('dark');
+    }
+})
+
+function setCookie(cname, cvalue, exmins) {
+    const d = new Date();
+    d.setTime(d.getTime() + (exmins * 6e4));
+    let expires = "expires=" + d.toUTCString();
+    document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+}
+
+$('.showAllCate').on('click', function () {
+    if ($('.ul-cate').is(":visible")) {
+        $(this).children('.fa').removeClass('fa-angle-double-up').addClass('fa-angle-double-down');
+    } else {
+        $(this).children('.fa').removeClass('fa-angle-double-down').addClass('fa-angle-double-up');
+    }
+
+    $('.ul-cate').slideToggle();
+});
+
+var cateMenuSelected = localStorage.getItem('catetgory.selected');
+if (cateMenuSelected != undefined && cateMenuSelected == 1) {
+
+    $('.showAllCate').click();
+    localStorage.setItem('catetgory.selected', '0');
+}
+
+$('.list-chapter').on('click', '.switchPage', function () {
+    var that = $(this);
+    var page = $(that).data('page');
+    var id = $(that).data('id');
+
+    $.get('/Chapter/LoadListChapter?id=' + id + '&p=' + page, function (data) {
+        $(that).closest('.ajax-content').html(data);
+    });
+
+});
+
+$('.list-chapter').on('change', '.slcChangePage', function () {
+    var that = $(this);
+    var page = $(that).val();
+    var id = $(that).data('id');
+
+    $.get('/Chapter/LoadListChapter?id=' + id + '&p=' + page, function (data) {
+        $(that).closest('.ajax-content').html(data);
+    });
+});
+
+function MobileReplyComment(that) {
+
+    $('#ParentCommentId').val($(that).data('id'))
+    var article = $('.area-comment');
+    if (article.length > 0) $('html, body').animate({ scrollTop: article.offset().top - 100 }, 500);
+
+    $('.replyfrom').show();
+    $('#replyUserName').text($(that).data('name'));
+}
+
+$('#cancelReply').on('click', function () {
+    $(this).closest('.replyFrom').hide();
+    $('#ParentCommentId').val(0);
+});
+
+$('body').on('submit', '.frmComment', function () {
+    var that = $(this);
+    var mangaId = $('#MangaId').val();
+	var chapterId = $('#ChapterId').val();
+
+    let guessName = '';
+    if ($('input[name="guessName"]').length > 0) {
+        guessName = $('input[name="guessName"]').val();
+        if (guessName == "") {
+            $('#msgError').text('Vui lòng nhập tên của bạn!');
+            $('#msgError').show().delay(5000).fadeOut();
+            return false;
+        }
+    }
+
+    let txtComment = $('#txtComment').val();
+    if (txtComment == '') {
+        $('#msgError').text('Vui lòng nhập nội dung comment!');
+        $('#msgError').show().delay(5000).fadeOut();
+        return false;
+    }
+
+    let urlComment = (guessName.length > 0) ? "/Comment/AjaxPostCommentGuess" : "/Comment/AjaxPostComment";
+
+    $.post(urlComment, {
+        mangaId: mangaId,
+		chapterId: chapterId,
+        guessName: guessName,
+        contentComment: txtComment,
+        commentId: $('#ParentCommentId').val()
+    }, function (data) {
+        if (data.status) {
+            $('#txtComment').val('');
+            $('#ParentCommentId').val(0);
+            $.get('/Comment/AjaxLoadComment?mangaId=' + mangaId + '&chapterId=' + chapterId, function (data) {
+                $('.list-comment').html(data);
+                var article = $('.scrollTo');
+                if (article.length > 0) $('html, body').animate({ scrollTop: article.offset().top }, 500);
+            });
+            $('#msgError').hide();
+            $('.replyfrom').hide();
+        }
+        else {
+            $('#msgError').text(data.message);
+            $('#msgError').show().delay(5000).fadeOut();
+        }
+    });
+
+    return false;
+});
+
+//#region Bookmark
+
+$('.selectAll').change(function () {
+    var that = $(this).closest('table');
+
+    $(that).find('input:checkbox[id^=' + this.value + ']').prop('checked', this.checked).change();
+});
+$('input:checkbox[id^=Bookmarks]').change(function () {
+    var that = $(this).closest('.bookmarkFolder');
+    if ($(that).find('input:checkbox[id^=Bookmarks]:checked').length > 0) {
+        $(that).find('.btnActionBookmark').removeAttr('disabled');
+    } else {
+        $(that).find('.btnActionBookmark').attr('disabled', 'disabled');
+    }
+});
+
+$('.listBookmark').on('click', '.removeMangaBookmark', function () {
+
+    if (confirm('Bạn có muốn xóa không?')) {
+        var that = $(this);
+
+        var mangaId = $(that).data('mangid');
+        var folderId = $(that).data('folderid');
+
+        $.post("/Manga/AjaxRemoveMangaBookmark", { mangaId: mangaId, folderId: folderId },
+            function (data) {
+                if (data.status) {
+                    $(that).closest('tr').hide().remove();
+                }
+                else {
+                    alert(data.message);
+                }
+            });
+    }
+});
+
+$('.listBookmark').on('click', '.chkIsRead', function () {
+    var that = $(this);
+
+    var mangaId = $(this).data('mangid');
+    var folderId = $(this).data('folderid');
+
+    $.post("/Manga/AjaxCheckIsReadMangaBookmark", { mangaId: mangaId, folderId: folderId },
+        function (data) {
+            if (data.status) {
+                if ($(that).closest('tr').find('.icon-file').hasClass('highlight')) {
+                    $(that).closest('tr').find('.icon-file').removeClass('highlight');
+                    $(that).attr('title', 'Đánh dấu chưa đọc');
+                    $(that).children('.fa').removeClass('fa-check').removeClass('text-success').addClass('fa-eye-slash').addClass('text-black');
+                } else {
+                    $(that).closest('tr').find('.icon-file').addClass('highlight');
+                    $(that).attr('title', 'Đánh dấu đã đọc');
+                    $(that).children('.fa').removeClass('fa-eye-slash').removeClass('text-black').addClass('fa-check').addClass('text-success');
+                }
+            }
+            else {
+                alert(data.message);
+            }
+        });
+});
+
+$('.listBookmark').on('click', '.btnActionBookmark', function () {
+    var that = $(this);
+    var action = $(this).data('action');
+    var folderId = $(this).closest('.bookmarkFolder').data('folderid');
+    var dataArray = [];
+    $('input:checkbox[id^=Bookmarks]').filter(':checked').each(function () {
+        dataArray.push($(this).prev().val());
+    });
+
+    ShowLoading();
+    if (action == 4)//move to new folder
+    {
+        if (dataArray.length == 0) {
+            alert('Vui lòng chọn truyện để chuyển!');
+            return;
+        }
+
+        //1. show popup 
+        $('#modal_move_manga_to_bookmark_folder').modal('show');
+        $('#MoveFromFolderId').val(folderId);
+        $('#MoveToFolderId').val(folderId);
+        $('#mMangaIds').val(dataArray.join(','));
+
+        HideLoading();
+
+        //2. choose folder and save data to folder is chose
+
+    } else {
+        //call ajax check is read or don't read or delete
+        $.post("/Manga/AjaxActionExecuteMangaBookmark", { action: action, ids: dataArray.join(','), folderId: folderId },
+            function (data) {
+                HideLoading();
+                if (data.status) {
+                    window.location.href = window.location.href;
+                }
+                else {
+                    alert(data.message);
+                }
+            });
+    }
+});
+
+$('#btnSaveToBookmarkFolder').on('click', function () {
+    var mangaIds = $('#mMangaIds').val();
+    var newFolderId = $('#MoveToFolderId').val();
+    var oldFolderId = $('#MoveFromFolderId').val();
+    ShowLoading();
+
+    $.post("/Manga/AjaxMoveMangaToBookmarkFolder", { oldFolderId: oldFolderId, newFolderId: newFolderId, ids: mangaIds },
+            function (data) {
+                HideLoading();
+                $('#modal_move_manga_to_bookmark_folder').modal('hide');
+
+                if (data.status) {
+                    //alert('Đã cập nhật thành công!');
+                    window.location.href = window.location.href;
+                }
+                else {
+                    alert(data.message);
+                }
+            });
+
+    return false;
+});
+
+$('.listBookmark').on('click', '.btnActionDeleteBookmark', function () {
+    if (confirm('Bạn có muốn xóa không?')) {
+        ShowLoading();
+        var folderId = 0;
+        $("li.bookmarkFolderId").each(function (index) {
+            console.log($(this).hasClass('active'));
+            if ($(this).hasClass('active')) {
+                folderId = $(this).data('folderid');
+            }
+        });
+        $.post("/Manga/AjaxDeleteBookmarkFolder", { folderId: folderId },
+            function (data) {
+                HideLoading();
+                if (data.status) {
+                    window.location.href = window.location.href;
+                }
+                else {
+                    alert(data.message);
+                }
+            });
+    }
+});
+
+$('#btnBookmart').on('click', '.titleClick', function () {
+    var that = $(this);
+    var type = $(that).data('id');
+    $(that).hide().siblings('.titleClick').show();
+    if (type == 1)//choose-folder
+    {
+        $('.bookmart-create').hide();
+        $('.bookmart-choose').show();
+    } else {//create-folder
+        $('.bookmart-create').show();
+        $('.bookmart-choose').hide();
+    }
+});
+
+$('#btnBookmart').on('click', '.btnCreateFolder', function () {
+    var that = $(this);
+    var txtFolder = $(that).siblings('.txtCreateFolder');
+
+    if (txtFolder.val() == '') {
+        alert('Vui lòng nhập tên thư mục');
+        txtFolder.focus();
+        return false;
+    }
+
+
+    $.post("/Manga/AjaxInsertBookmarkFolderName", { mangaId: $('#MangaId').val(), folderName: txtFolder.val() }, function (data) {
+        if (data.status) {
+            alert('Đã thêm vào bookmark thành công!');
+            $(that).closest('.bookmart-area').html(loading).hide();
+        }
+        else {
+            alert(data.message);
+        }
+    });
+
+    return false;
+});
+
+$('#btnBookmart').on('change', '.lstfolder .mangachoose', function () {
+    var that = $(this);
+    var _val = $(this).val();
+
+    $(that).closest('.bookmart-choose').find('#btnUpdateChoose').show();
+});
+
+$('#btnBookmart').on('click', '#btnUpdateChoose', function () {
+    var that = $(this);
+    var _val = $(that).siblings('.lstfolder').find('input[name="mangachoose"]:checked').val();
+
+    $.post("/Manga/AjaxInsertBookmark", { mangaId: $('#MangaId').val(), folderId: _val }, function (data) {
+        if (data.status) {
+            //alert('Đã thêm vào bookmark thành công!');
+            var htmlBookmark = '<span class="hideBookmart" data-folderid="' + _val + '"><i class="fa fa-bookmark red"></i> Xóa khỏi bookmark</span>';
+            $(that).closest('.like-buttons').find('#btnBookmart').addClass('hidde-bookmark').html(htmlBookmark);
+            //$(that).closest('.bookmart-area').html(loading).hide();
+            window.location.href = window.location.href
+        }
+        else {
+            alert(data.message);
+        }
+    });
+});
+
+$('.showBookmart').on('click', function () {
+    var that = $(this);
+    var auth = $(that).data('auth');
+    if (auth == 0) {
+        alert('Vui lòng đăng nhập để thực hiện chức năng này!');
+        return false;
+    }
+
+    $(this).siblings('.bookmart-area').toggle();
+    var mangaId = $('#MangaId').val();
+
+    if ($(this).siblings('.bookmart-area').find('.overlay-content-property').length > 0) {
+        $.get('/manga/LoadFolderBookmart?mangaId=' + mangaId, function (data) {
+            $(that).siblings('.bookmart-area').html(data);
+        });
+    }
+});
+
+$('#btnBookmart').on('click', '.hideBookmart', function () {
+    var that = $(this);
+    if (confirm('Bạn có muốn xóa không?')) {
+        var that = $(this);
+
+        var mangaId = $('#MangaId').val();
+        var folderId = $(that).data('folderid');
+
+        $.post("/Manga/AjaxRemoveMangaBookmark", { mangaId: mangaId, folderId: folderId },
+            function (data) {
+                if (data.status) {
+                    window.location.href = window.location.href
+                }
+                else {
+                    alert(data.message);
+                }
+            });
+    }
+});
+
+//#endregion
+
+// Hide Header on on scroll down
+var didScroll;
+var lastScrollTop = 0;
+var delta = 5;
+var navbarHeight = $('.headerNav').outerHeight();
+
+$(window).scroll(function (event) {
+    didScroll = true;
+});
+
+setInterval(function () {
+    if (didScroll) {
+        hasScrolled();
+        didScroll = false;
+    }
+}, 250);
+
+function hasScrolled() {
+    var st = $(this).scrollTop();
+
+    // Make sure they scroll more than delta
+    if (Math.abs(lastScrollTop - st) <= delta)
+        return;
+
+    if (st > lastScrollTop && st > navbarHeight) {
+        // Scroll Down
+        $('.headerNav').removeClass('nav-down').addClass('nav-up');        
+		if ($('.headerNav').find('.navbar-collapse.collapse.in').length > 0) {
+            $('.headerNav').find('[data-target=".navbar-collapse"]').click();
+        }
+        if ($('.headerNav').find('.second-row.collapse.in').length > 0) {
+            $('.headerNav').find('[data-target=".second-row"]').click();
+        }
+    } else {
+        // Scroll Up
+        if (st + $(window).height() < $(document).height()) {
+            $('.headerNav').removeClass('nav-up').addClass('nav-down');
+        }
+    }
+
+    lastScrollTop = st;
+}
+
+$('.paging-new').on('change', 'select.slcPaging', function () {
+    window.location.href = $(this).val()
+});
+
+$('.focusoutofmenu').on('click', 'li.catetgory', function () {
+    localStorage.setItem('catetgory.selected', '1');
+    console.log(localStorage.getItem('catetgory.selected'));
+});
+
+//$("div.focusoutofmenu ul.navbar-nav")
+//  .mouseout(function () {
+//      console.log($(this));
+//      console.log('mouseout => ' + $(this).hasClass('in'));
+//      if ($(this).find('.collapse.in').length > 0) {
+//          $(this).find('.navbar-toggle').click();
+//          console.log('mouseleave');
+//      }
+//  });
+
+//$('.headerNav > .focusoutofmenu').on('mouseleave', function () {
+//    console.log('mouseenter');
+//    if ($(this).find('.collapse.in').length > 0) {
+//        //$(this).find('.navbar-toggle').click();
+//        console.log('mouseleave');
+//    }
+//});
+//$('.headerNav > .focusoutofmenu').on('mouseenter', function () {
+//    console.log('mouseenter');
+//    if ($(this).find('.collapse.in').length > 0)
+//    {
+//        //$(this).find('.navbar-toggle').click();
+//        console.log('mouseleave');
+//    }
+//});
+
+$('.qc-inner-move').each(function () {
+    var str = $(this).html();
+
+    var positionList = $(this).data('positionlist');
+    var positionGrid = $(this).data('positiongrid');
+
+    if ($('.gridview').length > 0) {
+        $(this).insertAfter('.gridview div.item:nth(' + positionGrid + ')');
+		
+        var empty_div = "<div></div>";
+        for (var i = 0; i < 5; i++) $(empty_div).insertAfter('.gridview div.item:nth(' + positionGrid + ')');
+    }
+    else if ($('.listview').length > 0) {
+        $(this).insertAfter('.list-manga li:nth(' + positionList + ')');
+    }
+    else if ($('article.list-chapter').length > 0)
+    {
+        var positionChaper = $(this).attr('data-positionchapter');
+        if (typeof positionChaper !== typeof undefined && positionChaper !== false) {
+            if (positionChaper >= 0)
+            {
+                //call after ajax load
+            }
+            else
+            {
+                $(this).insertBefore('article.list-chapter');
+            }
+        }
+    }
+    else {
+        $(this).remove();
+    }
+});
+
+function insertQCInListChapter() {
+    // Retrieve the object from storage
+    //str = JSON.parse(localStorage.getItem('qc_M_Home_4_Detail'));
+
+    if ($('#qc_M_Home_8').length > 0 && $('#listChapter').length > 0) {
+        var tmp = $('#listChapter li').length;
+        var positionChaper = $('#qc_M_Home_8').data('positionchapter');
+
+        if (positionChaper >= tmp)
+            positionChaper = tmp - 1;
+
+        $('#qc_M_Home_8').insertAfter('#listChapter li:nth(' + positionChaper + ')');
+    }
+}
+
+$('.qc_M_Chap_Middle').each(function () {
+    var positionChaper = $(this).data('positionchapter');
+    var chapter_imgs = $('article.chapter-detail > div.content > img').length;
+    if (chapter_imgs > 0) {
+        var position_ads = positionChaper * Math.round(chapter_imgs / 3);
+        $(this).insertBefore('article.chapter-detail > div.content > img:nth(' + position_ads + ')');
+    }
+});
+
+loadSpoiler();
+function loadSpoiler() {
+    $('.spoiler').each(function (e) {
+        if (!$(this).hasClass('loaded')) {
+            $('<div class="top-spoiler"><a href="javascript:;" onclick="jsSpoiler(this)">Click vào đây để hiện nội dung</a></div>').insertBefore($(this));
+            $(this).addClass('loaded');
+        }
+    })
+}
+
+// Plugin Spoiler - TinyMce
+function jsSpoiler($this) {
+    $that = $($this).parent().next();
+    $($that).slideToggle('slow', function () {
+        if ($(this).is(':visible')) {
+            $($this).text('Click vào đây để ẩn nội dung')
+        }
+        else {
+            $($this).text('Click vào đây để hiện nội dung')
+        }
+    });
+}
+
+function timeSince(date) {
+
+    var seconds = Math.floor((new Date() - date) / 1000);
+
+    var interval = seconds / 31536000;
+
+    if (interval > 1) {
+        return Math.floor(interval) + " năm trước";
+    }
+    interval = seconds / 2592000;
+    if (interval > 1) {
+        return Math.floor(interval) + " tháng trước";
+    }
+    interval = seconds / 86400;
+    if (interval > 1) {
+        return Math.floor(interval) + " ngày trước";
+    }
+    interval = seconds / 3600;
+    if (interval > 1) {
+        return Math.floor(interval) + " giờ trước";
+    }
+    interval = seconds / 60;
+    if (interval > 1) {
+        return Math.floor(interval) + " phút trước";
+    }
+    return Math.floor(seconds) + " giây trước";
+}
